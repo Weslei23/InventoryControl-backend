@@ -23,6 +23,22 @@ public class CategoryMapper
     }
 
     /**
+     * Entity to dto, including how many products are linked to the category
+     *
+     * @param category
+     * @param productCount
+     * @return
+     */
+    public static CategoryResponseDTO entityToDto( Category category, long productCount )
+    {
+        CategoryResponseDTO categoryDTO = entityToDto( category );
+
+        categoryDTO.setProductCount( productCount );
+
+        return categoryDTO;
+    }
+
+    /**
      * Dto to entity
      *
      * @param categoryRequestDTO

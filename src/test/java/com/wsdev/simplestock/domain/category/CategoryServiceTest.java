@@ -4,6 +4,7 @@ import com.wsdev.simplestock.common.exceptions.RecordNotFoundException;
 import com.wsdev.simplestock.domain.category.dto.request.CategoryRequestDTO;
 import com.wsdev.simplestock.domain.category.dto.response.CategoryResponseDTO;
 import com.wsdev.simplestock.domain.category.model.Category;
+import com.wsdev.simplestock.domain.product.ProductRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -26,6 +27,9 @@ class CategoryServiceTest
 {
     @Mock
     private CategoryRepository categoryRepository;
+
+    @Mock
+    private ProductRepository productRepository;
 
     @InjectMocks
     private CategoryService categoryService;
@@ -58,11 +62,52 @@ class CategoryServiceTest
     }
 
     @Test
+    void getCategories_includesProductCountWithASingleGroupedQuery()
+    {
+        PageRequest pageable = PageRequest.of( 0, 10 );
+        when( categoryRepository.findAll( pageable ) )
+                .thenReturn( new PageImpl<>( List.of( category( 1L, "Food" ), category( 2L, "Drinks" ), category( 3L, "Empty" ) ) ) );
+        when( productRepository.countByCategoryIds( List.of( 1L, 2L, 3L ) ) )
+                .thenReturn( List.of( count( 1L, 5L ), count( 2L, 1L ) ) );
+
+        List<CategoryResponseDTO> result = categoryService.getCategories( pageable ).getContent();
+
+        assertEquals( 5L, result.get( 0 ).getProductCount() );
+        assertEquals( 1L, result.get( 1 ).getProductCount() );
+        assertEquals( 0L, result.get( 2 ).getProductCount() );
+        verify( productRepository, times( 1 ) ).countByCategoryIds( any() );
+        verify( productRepository, never() ).countByCategoryId( any() );
+    }
+
+    @Test
+    void getCategories_emptyPage_doesNotQueryProducts()
+    {
+        PageRequest pageable = PageRequest.of( 0, 10 );
+        when( categoryRepository.findAll( pageable ) ).thenReturn( new PageImpl<>( List.of() ) );
+
+        assertEquals( 0, categoryService.getCategories( pageable ).getTotalElements() );
+        verifyNoInteractions( productRepository );
+    }
+
+    private ProductRepository.CategoryProductCount count( Long categoryId, Long total )
+    {
+        return new ProductRepository.CategoryProductCount()
+        {
+            public Long getCategoryId() { return categoryId; }
+
+            public Long getTotal() { return total; }
+        };
+    }
+
+    @Test
     void getCategoryByName_returnsDto() throws Exception
     {
         when( categoryRepository.getCategoryByName( "Food" ) ).thenReturn( category( 1L, "Food" ) );
+        when( productRepository.countByCategoryId( 1L ) ).thenReturn( 4L );
 
         CategoryResponseDTO result = categoryService.getCategoryByName( "Food" );
+
+        assertEquals( 4L, result.getProductCount() );
 
         assertEquals( 1L, result.getId() );
         assertEquals( "Food", result.getName() );

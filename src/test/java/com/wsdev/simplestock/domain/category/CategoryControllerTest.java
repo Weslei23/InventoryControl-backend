@@ -4,6 +4,7 @@ import com.wsdev.simplestock.common.ControllerTestSupport;
 import com.wsdev.simplestock.common.exceptions.RecordNotFoundException;
 import com.wsdev.simplestock.domain.category.dto.request.CategoryRequestDTO;
 import com.wsdev.simplestock.domain.category.dto.response.CategoryResponseDTO;
+import com.wsdev.simplestock.domain.user.model.enums.Permission;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -35,6 +36,24 @@ class CategoryControllerTest extends ControllerTestSupport
         dto.setId( id );
         dto.setName( name );
         return dto;
+    }
+
+    @Test
+    void list_withoutPermission_returns403() throws Exception
+    {
+        mockMvc.perform( get( "/api/v1/categories" ).with( auth( Permission.CATEGORY_CREATE ) ) )
+                .andExpect( status().isForbidden() );
+
+        verifyNoInteractions( categoryService );
+    }
+
+    @Test
+    void delete_withReadOnlyPermission_returns403() throws Exception
+    {
+        mockMvc.perform( delete( "/api/v1/categories/delete/1" ).with( auth( Permission.CATEGORY_READ ) ) )
+                .andExpect( status().isForbidden() );
+
+        verifyNoInteractions( categoryService );
     }
 
     @Test

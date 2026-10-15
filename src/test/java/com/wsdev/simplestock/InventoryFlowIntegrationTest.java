@@ -52,21 +52,14 @@ class InventoryFlowIntegrationTest
     @BeforeEach
     void authenticate() throws Exception
     {
-        String email = UUID.randomUUID() + "@mail.com";
-
-        mockMvc.perform( post( "/api/v1/auth/register" )
-                        .contentType( MediaType.APPLICATION_JSON )
-                        .content( "{\"username\":\"tester\",\"email\":\"" + email + "\",\"password\":\"secret\"}" ) )
-                .andExpect( status().isCreated() );
-
         String body = mockMvc.perform( post( "/api/v1/auth/login" )
                         .contentType( MediaType.APPLICATION_JSON )
-                        .content( "{\"email\":\"" + email + "\",\"password\":\"secret\"}" ) )
+                        .content( "{\"email\":\"super@test.local\",\"password\":\"SuperPass123\"}" ) )
                 .andExpect( status().isOk() )
                 .andReturn().getResponse().getContentAsString();
 
         token = "Bearer " + JsonPath.read( body, "$.token" );
-        userId = ( (User) userRepository.findUserByEmail( email ).orElseThrow() ).getId();
+        userId = userRepository.findByEmail( "super@test.local" ).orElseThrow().getId();
     }
 
     private Long createCategory( String name ) throws Exception
@@ -186,6 +179,31 @@ class InventoryFlowIntegrationTest
     }
 
     @Test
+    void category_reportsHowManyProductsAreLinked() throws Exception
+    {
+        String name = "cat-" + UUID.randomUUID();
+        Long categoryId = createCategory( name );
+        String emptyName = "cat-" + UUID.randomUUID();
+        createCategory( emptyName );
+        Long supplierId = createSupplier( "sup-" + UUID.randomUUID() );
+        createProduct( "p-" + UUID.randomUUID(), 1, categoryId, supplierId );
+        createProduct( "p-" + UUID.randomUUID(), 1, categoryId, supplierId );
+
+        mockMvc.perform( get( "/api/v1/categories/" + name ).header( "Authorization", token ) )
+                .andExpect( jsonPath( "$.productCount" ).value( 2 ) );
+        mockMvc.perform( get( "/api/v1/categories/" + emptyName ).header( "Authorization", token ) )
+                .andExpect( jsonPath( "$.productCount" ).value( 0 ) );
+
+        mockMvc.perform( get( "/api/v1/categories?size=500" ).header( "Authorization", token ) )
+                .andExpect( status().isOk() )
+                .andExpect( jsonPath( "$.content[?(@.id == " + categoryId + ")].productCount" ).value( 2 ) );
+
+        // nested inside a product the count is not repeated
+        mockMvc.perform( get( "/api/v1/product?size=500" ).header( "Authorization", token ) )
+                .andExpect( jsonPath( "$.content[0].categoryDTO.productCount" ).doesNotExist() );
+    }
+
+    @Test
     void category_updateUnknownId_returns404() throws Exception
     {
         mockMvc.perform( put( "/api/v1/categories/update/999999" )
@@ -282,8 +300,23 @@ class InventoryFlowIntegrationTest
                         .header( "Authorization", token ) )
                 .andExpect( status().isCreated() );
 
-        assertEquals( "it-image.png", productRepository.findAll().stream()
-                .filter( p -> name.equals( p.getName() ) ).findFirst().orElseThrow().getImage() );
+        String stored = productRepository.findAll().stream()
+                .filter( p -> name.equals( p.getName() ) ).findFirst().orElseThrow().getImage();
+        assertTrue( stored.endsWith( "_it-image.png" ) );
+
+        // the thumbnail can be fetched back through the API
+        byte[] served = mockMvc.perform( get( "/api/v1/product/image/" + stored ).header( "Authorization", token ) )
+                .andExpect( status().isOk() )
+                .andExpect( content().contentType( "image/png" ) )
+                .andReturn().getResponse().getContentAsByteArray();
+        assertArrayEquals( new byte[]{ 1, 2, 3 }, served );
+
+        // ...only by authenticated users, and never outside the upload directory
+        mockMvc.perform( get( "/api/v1/product/image/" + stored ) ).andExpect( status().isForbidden() );
+        mockMvc.perform( get( "/api/v1/product/image/..%2F..%2Fpom.xml" ).header( "Authorization", token ) )
+                .andExpect( status().is4xxClientError() );
+        mockMvc.perform( get( "/api/v1/product/image/missing.png" ).header( "Authorization", token ) )
+                .andExpect( status().isNotFound() );
     }
 
     @Test
@@ -332,7 +365,7 @@ class InventoryFlowIntegrationTest
 
         mockMvc.perform( get( "/api/v1/movement" ).header( "Authorization", token ) )
                 .andExpect( status().isOk() )
-                .andExpect( jsonPath( "$.content[0].userName" ).value( "tester" ) );
+                .andExpect( jsonPath( "$.content[0].userName" ).value( "superuser" ) );
     }
 
     @Test

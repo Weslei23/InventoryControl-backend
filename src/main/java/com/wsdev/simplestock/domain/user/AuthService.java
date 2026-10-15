@@ -1,6 +1,7 @@
 package com.wsdev.simplestock.domain.user;
 
 import com.wsdev.simplestock.common.config.TokenConfig;
+import com.wsdev.simplestock.common.exceptions.EmailAlreadyInUseException;
 import com.wsdev.simplestock.domain.user.dto.request.LoginRequestDTO;
 import com.wsdev.simplestock.domain.user.dto.request.RegisterUserRequestDTO;
 import com.wsdev.simplestock.domain.user.dto.response.LoginResponseDTO;
@@ -53,6 +54,11 @@ public class AuthService
      */
     public RegisterUserResponseDTO register( RegisterUserRequestDTO registerUserRequestDTO )
     {
+        if ( userRepository.existsByEmail( registerUserRequestDTO.getEmail() ) )
+        {
+            throw new EmailAlreadyInUseException( registerUserRequestDTO.getEmail() );
+        }
+
         User newUser = RegisterMapper.dtoToEntity( registerUserRequestDTO );
 
         newUser.setPassword( passwordEncoder.encode( registerUserRequestDTO.getPassword() ) );

@@ -4,6 +4,8 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import com.wsdev.simplestock.domain.user.UserRepository;
+import com.wsdev.simplestock.domain.user.model.User;
 import org.apache.logging.log4j.util.Strings;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -20,6 +22,9 @@ public class SecurityFilter extends OncePerRequestFilter
     @Autowired
     private TokenConfig tokenConfig;
 
+    @Autowired
+    private UserRepository userRepository;
+
     @Override
     protected void doFilterInternal( HttpServletRequest request, HttpServletResponse response, FilterChain filterChain ) throws ServletException, IOException
     {
@@ -35,9 +40,14 @@ public class SecurityFilter extends OncePerRequestFilter
             {
                 JWTUserData user = optUser.get();
 
-                UsernamePasswordAuthenticationToken authenticationToken = new UsernamePasswordAuthenticationToken( user, null, java.util.Collections.emptyList() );
+                Optional<User> dbUser = userRepository.findById( user.getUserId() );
 
-                SecurityContextHolder.getContext().setAuthentication( authenticationToken );
+                if ( dbUser.isPresent() )
+                {
+                    UsernamePasswordAuthenticationToken authenticationToken = new UsernamePasswordAuthenticationToken( user, null, dbUser.get().getAuthorities() );
+
+                    SecurityContextHolder.getContext().setAuthentication( authenticationToken );
+                }
             }
 
             filterChain.doFilter( request, response );

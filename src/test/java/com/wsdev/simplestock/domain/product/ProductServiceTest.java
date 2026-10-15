@@ -19,6 +19,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -165,7 +166,7 @@ class ProductServiceTest
     }
 
     @Test
-    void addProduct_withFile_storesFileAndImageName() throws Exception
+    void addProduct_withFile_storesFileWithUniqueNameAndSetsImage() throws Exception
     {
         when( categoryRepository.findById( 1L ) ).thenReturn( Optional.of( category ) );
         when( supplierRepository.findById( 2L ) ).thenReturn( Optional.of( supplier ) );
@@ -175,8 +176,81 @@ class ProductServiceTest
 
         ArgumentCaptor<Product> captor = ArgumentCaptor.forClass( Product.class );
         verify( productRepository ).save( captor.capture() );
-        assertEquals( "beans.png", captor.getValue().getImage() );
-        assertArrayEquals( new byte[]{ 1, 2, 3 }, Files.readAllBytes( uploadDir.resolve( "beans.png" ) ) );
+        String stored = captor.getValue().getImage();
+        assertTrue( stored.endsWith( "_beans.png" ) );
+        assertArrayEquals( new byte[]{ 1, 2, 3 }, Files.readAllBytes( uploadDir.resolve( stored ) ) );
+    }
+
+    @Test
+    void addProduct_sameFileNameTwice_doesNotOverwrite() throws Exception
+    {
+        when( categoryRepository.findById( 1L ) ).thenReturn( Optional.of( category ) );
+        when( supplierRepository.findById( 2L ) ).thenReturn( Optional.of( supplier ) );
+
+        productService.addProduct( request(), new MockMultipartFile( "file", "a.png", "image/png", new byte[]{ 1 } ) );
+        productService.addProduct( request(), new MockMultipartFile( "file", "a.png", "image/png", new byte[]{ 2 } ) );
+
+        try ( var files = Files.list( uploadDir ) )
+        {
+            assertEquals( 2, files.count() );
+        }
+    }
+
+    @Test
+    void addProduct_fileNameWithPathSegments_staysInsideUploadDirectory() throws Exception
+    {
+        when( categoryRepository.findById( 1L ) ).thenReturn( Optional.of( category ) );
+        when( supplierRepository.findById( 2L ) ).thenReturn( Optional.of( supplier ) );
+
+        productService.addProduct( request(), new MockMultipartFile( "file", "../../evil.png", "image/png", new byte[]{ 1 } ) );
+
+        ArgumentCaptor<Product> captor = ArgumentCaptor.forClass( Product.class );
+        verify( productRepository ).save( captor.capture() );
+        assertFalse( captor.getValue().getImage().contains( ".." ) );
+        assertTrue( Files.exists( uploadDir.resolve( captor.getValue().getImage() ) ) );
+    }
+
+    // ---- product image ----
+
+    @Test
+    void getProductImage_returnsStoredImage() throws Exception
+    {
+        Files.write( uploadDir.resolve( "rice.png" ), new byte[]{ 1, 2, 3 } );
+
+        Resource image = productService.getProductImage( "rice.png" );
+
+        assertArrayEquals( new byte[]{ 1, 2, 3 }, image.getContentAsByteArray() );
+        assertEquals( "image/png", productService.getImageContentType( image ) );
+    }
+
+    @Test
+    void getProductImage_missingFile_throwsNotFound()
+    {
+        assertThrows( RecordNotFoundException.class, () -> productService.getProductImage( "nope.png" ) );
+    }
+
+    @Test
+    void getProductImage_pathTraversal_throwsNotFound() throws Exception
+    {
+        Path outside = uploadDir.getParent().resolve( "secret.png" );
+        Files.write( outside, new byte[]{ 9 } );
+
+        try
+        {
+            assertThrows( RecordNotFoundException.class, () -> productService.getProductImage( "../secret.png" ) );
+        }
+        finally
+        {
+            Files.deleteIfExists( outside );
+        }
+    }
+
+    @Test
+    void getProductImage_nonImageFile_throwsNotFound() throws Exception
+    {
+        Files.writeString( uploadDir.resolve( "page.html" ), "<script>alert(1)</script>" );
+
+        assertThrows( RecordNotFoundException.class, () -> productService.getProductImage( "page.html" ) );
     }
 
     @Test

@@ -4,7 +4,9 @@ import com.wsdev.simplestock.common.ControllerTestSupport;
 import com.wsdev.simplestock.common.exceptions.RecordNotFoundException;
 import com.wsdev.simplestock.domain.product.dto.request.ProductRequestDTO;
 import com.wsdev.simplestock.domain.product.dto.response.ProductResponseDTO;
+import com.wsdev.simplestock.domain.user.model.enums.Permission;
 import org.junit.jupiter.api.Test;
+import org.springframework.core.io.ByteArrayResource;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -44,6 +46,24 @@ class ProductControllerTest extends ControllerTestSupport
         dto.setName( "Rice" );
         dto.setPrice( new BigDecimal( "19.90" ) );
         return dto;
+    }
+
+    @Test
+    void download_withoutExportPermission_returns403() throws Exception
+    {
+        mockMvc.perform( get( "/api/v1/product/download" ).with( auth( Permission.PRODUCT_READ ) ) )
+                .andExpect( status().isForbidden() );
+
+        verifyNoInteractions( productService );
+    }
+
+    @Test
+    void list_withoutPermission_returns403() throws Exception
+    {
+        mockMvc.perform( get( "/api/v1/product" ).with( auth( Permission.CATEGORY_READ ) ) )
+                .andExpect( status().isForbidden() );
+
+        verifyNoInteractions( productService );
     }
 
     @Test
@@ -145,5 +165,37 @@ class ProductControllerTest extends ControllerTestSupport
                 .andExpect( content().contentType( "application/vnd.ms-excel" ) )
                 .andExpect( header().string( "Content-Disposition", org.hamcrest.Matchers.containsString( "Relatorio_Produtos.xls" ) ) )
                 .andExpect( content().bytes( new byte[]{ 1, 2, 3 } ) );
+    }
+
+    @Test
+    void image_returnsFileWithItsContentType() throws Exception
+    {
+        when( productService.getProductImage( "rice.png" ) ).thenReturn( new ByteArrayResource( new byte[]{ 1, 2, 3 } ) );
+        when( productService.getImageContentType( any() ) ).thenReturn( "image/png" );
+
+        mockMvc.perform( get( "/api/v1/product/image/rice.png" ).with( auth( Permission.PRODUCT_READ ) ) )
+                .andExpect( status().isOk() )
+                .andExpect( content().contentType( "image/png" ) )
+                .andExpect( content().bytes( new byte[]{ 1, 2, 3 } ) );
+    }
+
+    @Test
+    void image_withoutPermission_returns403() throws Exception
+    {
+        mockMvc.perform( get( "/api/v1/product/image/rice.png" ).with( auth( Permission.CATEGORY_READ ) ) )
+                .andExpect( status().isForbidden() );
+        mockMvc.perform( get( "/api/v1/product/image/rice.png" ) ).andExpect( status().isForbidden() );
+
+        verifyNoInteractions( productService );
+    }
+
+    @Test
+    void image_notFound_returns404() throws Exception
+    {
+        when( productService.getProductImage( "nope.png" ) ).thenThrow( new RecordNotFoundException( "Image not found: nope.png" ) );
+
+        mockMvc.perform( get( "/api/v1/product/image/nope.png" ).with( auth( Permission.PRODUCT_READ ) ) )
+                .andExpect( status().isNotFound() )
+                .andExpect( content().string( "Image not found: nope.png" ) );
     }
 }

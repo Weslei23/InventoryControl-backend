@@ -6,6 +6,7 @@ import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
@@ -19,6 +20,7 @@ public class SupplierController
 
     @GetMapping()
     @ResponseStatus( HttpStatus.OK )
+    @PreAuthorize( "hasAuthority('SUPPLIER_READ')" )
     public Page<SupplierResponseDTO> getSuppliers( Pageable pageable ) throws Exception
     {
         return supplierService.getSuppliers( pageable );
@@ -26,6 +28,7 @@ public class SupplierController
 
     @GetMapping( "/{id}" )
     @ResponseStatus( HttpStatus.OK )
+    @PreAuthorize( "hasAuthority('SUPPLIER_READ')" )
     public SupplierResponseDTO getSupplierById( @PathVariable Long id ) throws Exception
     {
         return supplierService.getSupplierById( id );
@@ -33,6 +36,7 @@ public class SupplierController
 
     @GetMapping( "/{name}" )
     @ResponseStatus( HttpStatus.OK )
+    @PreAuthorize( "hasAuthority('SUPPLIER_READ')" )
     public SupplierResponseDTO getSupplierByName( @PathVariable String name ) throws Exception
     {
         return  supplierService.getSupplierByName( name );
@@ -40,6 +44,7 @@ public class SupplierController
 
     @PostMapping( "/add" )
     @ResponseStatus( HttpStatus.CREATED )
+    @PreAuthorize( "hasAuthority('SUPPLIER_CREATE')" )
     public void addSupplier( @Valid @RequestBody SupplierRequestDTO supplierRequestDTO ) throws Exception
     {
         supplierService.addSupplier( supplierRequestDTO );
@@ -47,6 +52,7 @@ public class SupplierController
 
     @PutMapping( "/update/{id}" )
     @ResponseStatus( HttpStatus.NO_CONTENT )
+    @PreAuthorize( "hasAuthority('SUPPLIER_UPDATE')" )
     public void updateSupplier( @Valid @PathVariable Long id, @RequestBody SupplierRequestDTO supplierRequestDTO ) throws Exception
     {
         supplierService.updateSupplier( id, supplierRequestDTO );
@@ -54,6 +60,7 @@ public class SupplierController
 
     @DeleteMapping( "/delete/{id}" )
     @ResponseStatus( HttpStatus.NO_CONTENT )
+    @PreAuthorize( "hasAuthority('SUPPLIER_DELETE')" )
     public void deleteSupplier( @PathVariable Long id ) throws Exception
     {
         supplierService.deleteSupplier( id );

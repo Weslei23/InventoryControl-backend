@@ -4,6 +4,7 @@ import com.wsdev.simplestock.common.ControllerTestSupport;
 import com.wsdev.simplestock.common.exceptions.RecordNotFoundException;
 import com.wsdev.simplestock.domain.supplier.dto.request.SupplierRequestDTO;
 import com.wsdev.simplestock.domain.supplier.dto.response.SupplierResponseDTO;
+import com.wsdev.simplestock.domain.user.model.enums.Permission;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -38,6 +39,18 @@ class SupplierControllerTest extends ControllerTestSupport
         dto.setName( "Acme" );
         dto.setEmail( "a@b.com" );
         return dto;
+    }
+
+    @Test
+    void add_withoutPermission_returns403() throws Exception
+    {
+        mockMvc.perform( post( "/api/v1/supplier/add" )
+                        .with( auth( Permission.SUPPLIER_READ ) )
+                        .contentType( MediaType.APPLICATION_JSON )
+                        .content( BODY ) )
+                .andExpect( status().isForbidden() );
+
+        verifyNoInteractions( supplierService );
     }
 
     @Test

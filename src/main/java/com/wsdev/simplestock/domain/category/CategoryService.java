@@ -7,10 +7,15 @@ import com.wsdev.simplestock.domain.category.mapper.CategoryMapper;
 import com.wsdev.simplestock.domain.category.model.Category;
 import com.wsdev.simplestock.common.utilities.Validator;
 import jakarta.validation.Valid;
+import com.wsdev.simplestock.domain.product.ProductRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 @Service
 public class CategoryService
@@ -18,15 +23,28 @@ public class CategoryService
     @Autowired
     private CategoryRepository categoryRepository;
 
+    @Autowired
+    private ProductRepository productRepository;
+
     /**
      * Get all categories
      * @return
      */
     public Page<CategoryResponseDTO> getCategories( Pageable pageable )
     {
-        Page<Category> categoryDTOS = categoryRepository.findAll( pageable );
+        Page<Category> categories = categoryRepository.findAll( pageable );
 
-        return categoryDTOS.map( CategoryMapper::entityToDto );
+        // one grouped query for the whole page instead of one count per category
+        List<Long> ids = categories.getContent().stream().map( Category::getId ).toList();
+        Map<Long, Long> productCounts = new HashMap<>();
+
+        if ( !ids.isEmpty() )
+        {
+            productRepository.countByCategoryIds( ids )
+                    .forEach( count -> productCounts.put( count.getCategoryId(), count.getTotal() ) );
+        }
+
+        return categories.map( category -> CategoryMapper.entityToDto( category, productCounts.getOrDefault( category.getId(), 0L ) ) );
     }
 
     /**
@@ -37,7 +55,9 @@ public class CategoryService
     public CategoryResponseDTO getCategoryByName( String name ) throws Exception
     {
         Validator.requiredNonNull( name, new IllegalArgumentException( "Argument 'Name' must not be null." ) );
-        return CategoryMapper.entityToDto( categoryRepository.getCategoryByName( name ) );
+        Category category = categoryRepository.getCategoryByName( name );
+
+        return CategoryMapper.entityToDto( category, productRepository.countByCategoryId( category.getId() ) );
     }
 
     /**

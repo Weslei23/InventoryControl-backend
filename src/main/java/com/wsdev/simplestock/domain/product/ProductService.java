@@ -18,6 +18,8 @@ import org.apache.poi.hssf.usermodel.HSSFSheet;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.PathResource;
+import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -27,6 +29,7 @@ import java.io.ByteArrayOutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.UUID;
 
 @Service
 public class ProductService
@@ -42,6 +45,7 @@ public class ProductService
 
     @Value( "${file.upload-dir}" )
     private String fileDirectory;
+
     /**
      * getProducts()
      * @return
@@ -109,14 +113,15 @@ public class ProductService
 
         if ( file != null && !file.isEmpty() )
         {
-            byte[] bytes = file.getBytes();
+            String originalName = Paths.get( file.getOriginalFilename() == null ? "image" : file.getOriginalFilename() ).getFileName().toString();
+            String storedName = UUID.randomUUID() + "_" + originalName;
 
-            Path filePath = Paths.get( fileDirectory, file.getOriginalFilename() );
+            Path filePath = Paths.get( fileDirectory, storedName );
 
             Files.createDirectories( filePath.getParent() );
-            Files.write( filePath, bytes );
+            Files.write( filePath, file.getBytes() );
 
-            product.setImage( file.getOriginalFilename() );
+            product.setImage( storedName );
         }
 
         product.setCategory( category );
@@ -152,6 +157,52 @@ public class ProductService
         product.setSupplier( supplier );
 
         productRepository.save( product );
+    }
+
+    /**
+     * Product image (thumbnail) stored by addProduct. Only image files inside the upload directory are served.
+     *
+     * @param filename
+     * @return
+     */
+    public Resource getProductImage( String filename )
+    {
+        Path baseDirectory = Paths.get( fileDirectory ).toAbsolutePath().normalize();
+        Path file = baseDirectory.resolve( filename ).normalize();
+
+        if ( !file.startsWith( baseDirectory ) || !Files.isRegularFile( file ) || !isImage( file ) )
+        {
+            throw new RecordNotFoundException( "Image not found: " + filename );
+        }
+
+        return new PathResource( file );
+    }
+
+    /**
+     * Media type of a stored image
+     *
+     * @param resource
+     * @return
+     */
+    public String getImageContentType( Resource resource ) throws Exception
+    {
+        String contentType = Files.probeContentType( resource.getFile().toPath() );
+
+        return contentType == null ? "application/octet-stream" : contentType;
+    }
+
+    private boolean isImage( Path file )
+    {
+        try
+        {
+            String contentType = Files.probeContentType( file );
+
+            return contentType != null && contentType.startsWith( "image/" );
+        }
+        catch ( java.io.IOException e )
+        {
+            return false;
+        }
     }
 
     /**

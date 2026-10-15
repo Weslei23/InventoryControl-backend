@@ -6,6 +6,7 @@ import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
@@ -19,6 +20,7 @@ public class MovementController
 
     @GetMapping()
     @ResponseStatus( HttpStatus.OK )
+    @PreAuthorize( "hasAuthority('MOVEMENT_READ')" )
     public Page<MovementResponseDTO> getCategories( Pageable pageable ) throws Exception
     {
         return movementService.getMovements( pageable );
@@ -26,6 +28,7 @@ public class MovementController
 
     @PostMapping( "/inbound" )
     @ResponseStatus( HttpStatus.OK )
+    @PreAuthorize( "hasAuthority('MOVEMENT_CREATE')" )
     public void entryProduct( @Valid @RequestBody MovementRequestDTO movementRequestDTO ) throws Exception
     {
         movementService.entryProduct( movementRequestDTO );
@@ -33,6 +36,7 @@ public class MovementController
 
     @PostMapping( "/outbound" )
     @ResponseStatus( HttpStatus.OK )
+    @PreAuthorize( "hasAuthority('MOVEMENT_CREATE')" )
     public void exitProduct( @Valid @RequestBody MovementRequestDTO movementRequestDTO ) throws Exception
     {
         movementService.exitProduct( movementRequestDTO );
@@ -40,6 +44,7 @@ public class MovementController
 
     @PostMapping( "/add" )
     @ResponseStatus( HttpStatus.CREATED )
+    @PreAuthorize( "hasAuthority('MOVEMENT_CREATE')" )
     public void addMovement( @Valid @RequestBody MovementRequestDTO movementRequestDTO ) throws Exception
     {
         movementService.addMovement( movementRequestDTO );
@@ -47,6 +52,7 @@ public class MovementController
 
     @PutMapping( "/update/{id}" )
     @ResponseStatus( HttpStatus.NO_CONTENT )
+    @PreAuthorize( "hasAuthority('MOVEMENT_UPDATE')" )
     public void updateMovement( @Valid @PathVariable Long id, @RequestBody MovementRequestDTO movementRequestDTO ) throws Exception
     {
         movementService.updateMovement( id, movementRequestDTO );
@@ -54,6 +60,7 @@ public class MovementController
 
     @DeleteMapping( "/delete/{id}" )
     @ResponseStatus( HttpStatus.NO_CONTENT )
+    @PreAuthorize( "hasAuthority('MOVEMENT_DELETE')" )
     public void deleteMovement( @PathVariable Long id ) throws Exception
     {
         movementService.deleteMovement( id );

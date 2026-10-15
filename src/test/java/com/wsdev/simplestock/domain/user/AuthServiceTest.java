@@ -1,6 +1,8 @@
 package com.wsdev.simplestock.domain.user;
 
 import com.wsdev.simplestock.common.config.TokenConfig;
+import com.wsdev.simplestock.common.exceptions.EmailAlreadyInUseException;
+import com.wsdev.simplestock.domain.user.model.enums.Role;
 import com.wsdev.simplestock.domain.user.dto.request.LoginRequestDTO;
 import com.wsdev.simplestock.domain.user.dto.request.RegisterUserRequestDTO;
 import com.wsdev.simplestock.domain.user.dto.response.LoginResponseDTO;
@@ -90,5 +92,35 @@ class AuthServiceTest
         ArgumentCaptor<User> captor = ArgumentCaptor.forClass( User.class );
         verify( userRepository ).save( captor.capture() );
         assertEquals( "encoded", captor.getValue().getPassword() );
+    }
+
+    @Test
+    void register_createsRegularUserWithoutPermissions()
+    {
+        RegisterUserRequestDTO request = new RegisterUserRequestDTO();
+        request.setUsername( "john" );
+        request.setEmail( "john@mail.com" );
+        request.setPassword( "plain" );
+        when( passwordEncoder.encode( "plain" ) ).thenReturn( "encoded" );
+
+        authService.register( request );
+
+        ArgumentCaptor<User> captor = ArgumentCaptor.forClass( User.class );
+        verify( userRepository ).save( captor.capture() );
+        assertEquals( Role.USER, captor.getValue().getRole() );
+        assertTrue( captor.getValue().getEffectivePermissions().isEmpty() );
+    }
+
+    @Test
+    void register_duplicatedEmail_throwsAndDoesNotSave()
+    {
+        RegisterUserRequestDTO request = new RegisterUserRequestDTO();
+        request.setUsername( "john" );
+        request.setEmail( "john@mail.com" );
+        request.setPassword( "plain" );
+        when( userRepository.existsByEmail( "john@mail.com" ) ).thenReturn( true );
+
+        assertThrows( EmailAlreadyInUseException.class, () -> authService.register( request ) );
+        verify( userRepository, never() ).save( any() );
     }
 }

@@ -5,6 +5,7 @@ import com.wsdev.simplestock.common.exceptions.RecordNotFoundException;
 import com.wsdev.simplestock.domain.movement.dto.request.MovementRequestDTO;
 import com.wsdev.simplestock.domain.movement.dto.response.MovementResponseDTO;
 import com.wsdev.simplestock.domain.movement.model.enums.MovementType;
+import com.wsdev.simplestock.domain.user.model.enums.Permission;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,6 +35,18 @@ class MovementControllerTest extends ControllerTestSupport
 
     @MockitoBean
     private MovementService movementService;
+
+    @Test
+    void inbound_withoutCreatePermission_returns403() throws Exception
+    {
+        mockMvc.perform( post( "/api/v1/movement/inbound" )
+                        .with( auth( Permission.MOVEMENT_READ ) )
+                        .contentType( MediaType.APPLICATION_JSON )
+                        .content( INBOUND ) )
+                .andExpect( status().isForbidden() );
+
+        verifyNoInteractions( movementService );
+    }
 
     @Test
     void list_withoutToken_returns403() throws Exception
