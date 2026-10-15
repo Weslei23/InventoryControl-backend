@@ -1,0 +1,42 @@
+name: ${COMPOSE_PROJECT_NAME:-inventory}
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: simplestock
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD nao definido}
+    volumes:
+      - inventory-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d simplestock"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  backend:
+    image: ${IMAGE_NAME:-inventory-backend}:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "${HOST_PORT:-8083}:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/simplestock
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
+      SECRETKEY: ${JWT_SECRET:?JWT_SECRET nao definido}
+      APP_SUPERUSER_USERNAME: ${ADMIN_USERNAME:-weslei}
+      APP_SUPERUSER_EMAIL: ${ADMIN_EMAIL}
+      APP_SUPERUSER_PASSWORD: ${ADMIN_PASSWORD:?ADMIN_PASSWORD nao definido}
+      APP_CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
+      FILE_UPLOAD_DIR: /app/shared/files/products
+    volumes:
+      - inventory-uploads:/app/shared/files
+
+volumes:
+  inventory-db:
+  inventory-uploads:
